@@ -62,8 +62,8 @@ native final class Array.<T> {
 	function slice(start : int) : Array.<T>;
 	function slice(start : int, end : int) : Array.<T>;
 	function sort() : Array.<T>;
-	function sort(comparefn : function (x : MayBeUndefined.<T>, y : MayBeUndefined.<T>) : int) : Array.<T>;
-	function sort(comparefn : function (x : MayBeUndefined.<T>, y : MayBeUndefined.<T>) : number) : Array.<T>;
+	function sort(comparefn : (MayBeUndefined.<T>, MayBeUndefined.<T>) -> int) : Array.<T>;
+	function sort(comparefn : (MayBeUndefined.<T>, MayBeUndefined.<T>) -> number) : Array.<T>;
 	// FIXME splice(start, deleteCount, items...)
 	function splice(start : int, deleteCount : int) : Array.<T>;
 	function splice(start : int, deleteCount : int, item : T) : Array.<T>;
@@ -74,26 +74,26 @@ native final class Array.<T> {
 	function indexOf(value : MayBeUndefined.<T>, fromIndex : number) : number;
 	function lastIndexOf(value : MayBeUndefined.<T>) : number;
 	function lastIndexOf(value : MayBeUndefined.<T>, fromIndex : number) : number;
-	function every(callbackfn : function(value : MayBeUndefined.<T>) : boolean) : boolean;
-	function every(callbackfn : function(value : MayBeUndefined.<T>, index : number) : boolean) : boolean;
-	function every(callbackfn : function(value : MayBeUndefined.<T>, index : number, array : Array.<T>) : boolean) : boolean;
-	function some(callbackfn : function(value : MayBeUndefined.<T>) : boolean) : boolean;
-	function some(callbackfn : function(value : MayBeUndefined.<T>, index : number) : boolean) : boolean;
-	function some(callbackfn : function(value : MayBeUndefined.<T>, index : number, array : Array.<T>) : boolean) : boolean;
-	function forEach(callbackfn : function(value : MayBeUndefined.<T>) : void) : void;
-	function forEach(callbackfn : function(value : MayBeUndefined.<T>, index : number) : void) : void;
-	function forEach(callbackfn : function(value : MayBeUndefined.<T>, index : number, array : Array.<T>) : void) : void;
-	function map(callbackfn : function(value : MayBeUndefined.<T>) : MayBeUndefined.<T>) : Array.<T>;
-	function map(callbackfn : function(value : MayBeUndefined.<T>, index : number) : MayBeUndefined.<T>) : Array.<T>;
-	function map(callbackfn : function(value : MayBeUndefined.<T>, index : number, array : Array.<T>) : MayBeUndefined.<T>) : Array.<T>;
-	function filter(callbackfn : function(value : MayBeUndefined.<T>) : boolean) : Array.<T>;
-	function filter(callbackfn : function(value : MayBeUndefined.<T>, index : number) : boolean) : Array.<T>;
-	function filter(callbackfn : function(value : MayBeUndefined.<T>, index : number, array : Array.<T>) : boolean) : Array.<T>;
+	function every(callbackfn : (MayBeUndefined.<T>) -> boolean) : boolean;
+	function every(callbackfn : (MayBeUndefined.<T>, number) -> boolean) : boolean;
+	function every(callbackfn : (MayBeUndefined.<T>, number, Array.<T>) -> boolean) : boolean;
+	function some(callbackfn : (MayBeUndefined.<T>) -> boolean) : boolean;
+	function some(callbackfn : (MayBeUndefined.<T>, number) -> boolean) : boolean;
+	function some(callbackfn : (MayBeUndefined.<T>, number, Array.<T>) -> boolean) : boolean;
+	function forEach(callbackfn : (MayBeUndefined.<T>) -> void) : void;
+	function forEach(callbackfn : (MayBeUndefined.<T>, number) -> void) : void;
+	function forEach(callbackfn : (MayBeUndefined.<T>, number, Array.<T>) -> void) : void;
+	function map(callbackfn : (MayBeUndefined.<T>) -> MayBeUndefined.<T>) : Array.<T>;
+	function map(callbackfn : (MayBeUndefined.<T>, number) -> MayBeUndefined.<T>) : Array.<T>;
+	function map(callbackfn : (MayBeUndefined.<T>, number, Array.<T>) -> MayBeUndefined.<T>) : Array.<T>;
+	function filter(callbackfn : (MayBeUndefined.<T>) -> boolean) : Array.<T>;
+	function filter(callbackfn : (MayBeUndefined.<T>, number) -> boolean) : Array.<T>;
+	function filter(callbackfn : (MayBeUndefined.<T>, number, Array.<T>) -> boolean) : Array.<T>;
 
-	function reduce(callbackfn : function(previousValue : MayBeUndefined.<T>, currentValue : MayBeUndefined.<T>) : MayBeUndefined.<T>) : Array.<T>;
-	function reduce(callbackfn : function(previousValue : MayBeUndefined.<T>, currentValue : MayBeUndefined.<T>) : MayBeUndefined.<T>, initialValue : T) : Array.<T>;
-	function reduceRight(callbackfn : function(previousValue : MayBeUndefined.<T>, currentValue : MayBeUndefined.<T>) : MayBeUndefined.<T>) : Array.<T>;
-	function reduceRight(callbackfn : function(previousValue : MayBeUndefined.<T>, currentValue : MayBeUndefined.<T>) : MayBeUndefined.<T>, initialValue : T) : Array.<T>;
+	function reduce(callbackfn : (MayBeUndefined.<T>, MayBeUndefined.<T>) -> MayBeUndefined.<T>) : Array.<T>;
+	function reduce(callbackfn : (MayBeUndefined.<T>, MayBeUndefined.<T>) -> MayBeUndefined.<T>, initialValue : T) : Array.<T>;
+	function reduceRight(callbackfn : (MayBeUndefined.<T>, MayBeUndefined.<T>) -> MayBeUndefined.<T>) : Array.<T>;
+	function reduceRight(callbackfn : (MayBeUndefined.<T>, MayBeUndefined.<T>) -> MayBeUndefined.<T>, initialValue : T) : Array.<T>;
 
 	// 15.4.5
 	var length : int;
@@ -125,8 +125,8 @@ native final class String {
 	function replace(searchValue : string, replaceValue : string) : string;
 	function replace(searchValue : RegExp, replaceValue : string) : string;
 	// FIXME 15.5.4.11
-	function replace(searchValue : string, replaceValue : function(matched :string):string) : string;
-	function replace(searchValue : RegExp, replaceValue : function(matched :string):string) : string;
+	function replace(searchValue : string, replaceValue : (string) -> string) : string;
+	function replace(searchValue : RegExp, replaceValue : (string) -> string) : string;
 	function search(searchValue : string) : int;
 	function search(searchValue : RegExp) : int;
 	function slice(start : int) : string;
@@ -390,11 +390,11 @@ native class TypeError extends Error {
 native class JSON {
 
 	static function parse(text : string) : variant;
-	static function parse(text : string, reviver : function(key:string, value:variant):variant) : variant;
+	static function parse(text : string, reviver : (string, variant) -> variant) : variant;
 
 	static function stringify(value : variant) : string;
-	static function stringify(value : variant, replacer : function(key:string,value:variant):variant) : string;
-	static function stringify(value : variant, replacer : function(key:string,value:variant):variant, space : int) : string;
+	static function stringify(value : variant, replacer : (string,variant) -> variant) : string;
+	static function stringify(value : variant, replacer : (string,variant) -> variant, space : int) : string;
 
 }
 
