@@ -1181,10 +1181,10 @@ var Parser = exports.Parser = Class.extend({
 	},
 
 	_primaryTypeDeclaration: function () {
-		var token = this._expectOpt([ "(", "boolean", "int", "number", "string" ]);
+		var token = this._expectOpt([ "function", "boolean", "int", "number", "string" ]);
 		if (token != null) {
 			switch (token.getValue()) {
-			case "(":
+			case "function":
 				return this._functionTypeDeclaration(null);
 			case "boolean":
 				return Type.booleanType;
@@ -1248,10 +1248,17 @@ var Parser = exports.Parser = Class.extend({
 	},
 
 	_functionTypeDeclaration: function (objectType) {
+		// optional function name
+		this._expectIdentifierOpt();
 		// parse args
+		if(this._expect("(") == null)
+			return null;
 		var argTypes = [];
 		if (this._expectOpt(")") == null) {
 			do {
+				this._expectIdentifierOpt(); // may have identifiers
+				if (this._expect(":") == null)
+					return null;
 				var argType = this._typeDeclaration(false);
 				if (argType == null)
 					return null;
@@ -1262,7 +1269,7 @@ var Parser = exports.Parser = Class.extend({
 			} while (token.getValue() == ",");
 		}
 		// parse return type
-		if (this._expect("->") == null)
+		if (this._expect(":") == null)
 			return false;
 		var returnType = this._typeDeclaration(true);
 		if (returnType == null)
