@@ -1993,11 +1993,14 @@ var Parser = exports.Parser = Class.extend({
 
 	_lhsExpr: function () {
 		var expr;
-		var token = this._expectOpt([ "new", "super", "function" ]);
+		var token = this._expectOpt([ "new", "super", "(", "function" ]);
 		if (token != null) {
 			switch (token.getValue()) {
 			case "super":
 				return this._superExpr();
+			case "(":
+				expr = this._lambdaExpr(token);
+				break;
 			case "function":
 				expr = this._functionExpr(token);
 				break;
@@ -2089,6 +2092,32 @@ var Parser = exports.Parser = Class.extend({
 		if (args == null)
 			return null;
 		return new SuperExpression(token, identifier, args);
+	},
+
+	_lambdaExpr: function (token) {
+		var args = this._functionArgumentsExpr();
+		if (args == null)
+			return null;
+		if (this._expect(":") == null)
+			return null;
+		var returnType = this._typeDeclaration(true);
+		if (returnType == null)
+			return null;
+		if (this._expect("->") == null)
+			return null;
+		if (this._expect("{") == null)
+			return null;
+		// parse function block
+		var state = this._pushFunctionState();
+		var lastToken = this._block();
+		if (lastToken == null) {
+			this._restoreFunctionState(state);
+			return null;
+		}
+		var funcDef = new MemberFunctionDefinition(token, null, ClassDefinition.IS_STATIC, returnType, args, this._locals, this._statements, this._closures, lastToken);
+		this._restoreFunctionState(state);
+		this._closures.push(funcDef);
+		return new FunctionExpression(token, funcDef);
 	},
 
 	_functionExpr: function (token) {
