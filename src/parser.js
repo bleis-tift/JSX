@@ -1023,6 +1023,7 @@ var Parser = exports.Parser = Class.extend({
 		}
 		// add equals and toString if need
 		if ((flags & ClassDefinition.IS_VAL) != 0) {
+			var hasConstructor = false;
 			var hasToString = false;
 			var fields = [];
 			for (var i = 0; i < members.length; i++) {
@@ -1031,12 +1032,17 @@ var Parser = exports.Parser = Class.extend({
 					fields.push(m);
 				else {
 					switch (m.getNameToken().getValue()) {
+						case "constructor":
+							hasConstructor = true;
+							break;
 						case "toString":
 							hasToString = true;
 							break;
 					}
 				}
 			}
+			if (!hasConstructor)
+				members.push(this._createValClassConstructor(className, fields));
 			if (!hasToString)
 				members.push(this._createValClassToString(className, fields));
 		}
@@ -1075,6 +1081,32 @@ var Parser = exports.Parser = Class.extend({
 		else
 			this._classDefs.push(new ClassDefinition(className, className.getValue(), flags, this._extendType, this._implementTypes, members, this._objectTypesUsed));
 		return true;
+	},
+
+	_createValClassConstructor: function(clazz, fields) {
+		var name = new Token("constructor", true, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
+		var flags = ClassDefinition.IS_FINAL;
+		var returnType = Type.voidType;
+		var locals = [];
+		var closures = [];
+		// util funcs
+		var tok = function(t) {
+			return new Token(t, false, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
+		};
+		// build constructor body
+		var args = [];
+		var stmts = [];
+		for (var i = 0; i < fields.length; i++) {
+			var f = fields[i];
+			var fn = f.getNameToken();
+			var ft = f.getType();
+			var fexpr = new PropertyExpression(tok("."), new ThisExpression(clazz, null), tok(fn.getValue()));
+			var initVal = new LocalExpression(tok(fn.getValue()), new LocalVariable(fn, ft));
+			args.push(new ArgumentDeclaration(fn, ft));
+			stmts.push(new ExpressionStatement(new AssignmentExpression(tok("="), fexpr, initVal)));
+		}
+		this._arguments = args;
+		return new MemberFunctionDefinition(clazz, name, flags, returnType, args, locals, stmts, closures);
 	},
 
 	_createValClassToString: function(clazz, fields) {
