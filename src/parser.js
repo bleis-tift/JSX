@@ -145,6 +145,7 @@ var _Lexer = exports._TokenTable = Class.extend({
 			"delete",   "in",       "try",
 			// keywords of JSX
 			"class",	 "extends", "super",
+			/* "val", // contextual keywords */
 			"import",    "implements",
 			"interface", "static",
 			"__FILE__",  "__LINE__",
@@ -888,7 +889,7 @@ var Parser = exports.Parser = Class.extend({
 		// attributes* class
 		var flags = 0;
 		while (true) {
-			var token = this._expect([ "class", "interface", "mixin", "abstract", "final", "native", "__fake__" ]);
+			var token = this._expect([ "class", "interface", "mixin", "abstract", "final", "native", "__fake__", "val" ]);
 			if (token == null)
 				return false;
 			if (token.getValue() == "class")
@@ -923,6 +924,9 @@ var Parser = exports.Parser = Class.extend({
 			case "__fake__":
 				newFlag = ClassDefinition.IS_FAKE;
 				break;
+			case "val":
+				newFlag = ClassDefinition.IS_VAL;
+				break;
 			default:
 				throw new Error("logic flaw");
 			}
@@ -952,7 +956,14 @@ var Parser = exports.Parser = Class.extend({
 			} while (token.getValue() == ",");
 		}
 		// extends
-		if ((flags & (ClassDefinition.IS_INTERFACE | ClassDefinition.IS_MIXIN)) == 0) {
+		if ((flags & ClassDefinition.IS_VAL) != 0) {
+			if (this._expectOpt("extends") != null) {
+				this._newError("oops!");
+				return false;
+			}
+			this._extendType = new ParsedObjectType(new QualifiedName(new Token("Object", true), null), []);
+			this._objectTypesUsed.push(this._extendType);
+		} else if ((flags & (ClassDefinition.IS_INTERFACE | ClassDefinition.IS_MIXIN)) == 0) {
 			if (this._expectOpt("extends") != null) {
 				if ((this._extendType = this._objectTypeDeclaration(null)) == null)
 					return false;
@@ -1010,6 +1021,25 @@ var Parser = exports.Parser = Class.extend({
 				this._skipStatement();
 			}
 		}
+		// add equals and toString if need
+		if ((flags & ClassDefinition.IS_VAL) != 0) {
+			var hasToString = false;
+			var fields = [];
+			for (var i = 0; i < members.length; i++) {
+				var m = members[i];
+				if (m instanceof MemberVariableDefinition)
+					fields.push(m);
+				else {
+					switch (m.getNameToken().getValue()) {
+						case "toString":
+							hasToString = true;
+							break;
+					}
+				}
+			}
+			if (!hasToString)
+				members.push(this._createValClassToString(className, fields));
+		}
 
 		// check name conflicts
 		if ((flags & ClassDefinition.IS_NATIVE) == 0 && Parser._isReservedClassName(className.getValue())) {
@@ -1045,6 +1075,45 @@ var Parser = exports.Parser = Class.extend({
 		else
 			this._classDefs.push(new ClassDefinition(className, className.getValue(), flags, this._extendType, this._implementTypes, members, this._objectTypesUsed));
 		return true;
+	},
+
+	_createValClassToString: function(clazz, fields) {
+		var name = new Token("toString", true, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
+		var flags = ClassDefinition.IS_OVERRIDE;
+		var returnType = Type.stringType;
+		var args = [];
+		var locals = [];
+		var closures = [];
+		// util funcs
+		var tok = function(t) {
+			return new Token(t, false, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
+		};
+		var strLit = function(str) {
+			return new StringLiteralExpression(tok("'" + str + "'"));
+		};
+		var addExpr = function(firstExpr, restExprs) {
+			switch (restExprs.length) {
+				case 1:
+					return new AdditiveExpression(tok("+"), firstExpr, restExprs[0]);
+				default:
+					var nextFirst = restExprs.shift();
+					return new AdditiveExpression(tok("+"), firstExpr, addExpr(nextFirst, restExprs));
+			}
+		};
+		var f2str = function(field) {
+			var prefix = strLit(" var " + field.name() + ": " + field.getType() + " = ");
+			var suffix = strLit(";");
+			var fexpr = new PropertyExpression(tok("."), new ThisExpression(clazz, null), tok(field.getNameToken().getValue()));
+			var toStrExpr = new PropertyExpression(tok("toString"), fexpr, tok("toString"));
+			return addExpr(prefix, [new CallExpression(tok("("), toStrExpr, []), suffix]);
+		};
+		// build toString body
+		// format: ClassName { var field: Type = value; ... }
+		var xs = fields.map(f2str);
+		var expr = addExpr(
+				strLit(clazz.getValue() + " {"), fields.map(f2str).concat(strLit(" }")) );
+		var stmts = [new ReturnStatement(clazz, expr)];
+		return new MemberFunctionDefinition(clazz, name, flags, returnType, args, locals, stmts, closures);
 	},
 
 	_memberDefinition: function (classFlags, isTemplate) {
