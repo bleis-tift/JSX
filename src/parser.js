@@ -1023,22 +1023,53 @@ var Parser = exports.Parser = Class.extend({
 		}
 		// add equals and toString if need
 		if ((flags & ClassDefinition.IS_VAL) != 0) {
+			function extractFields() {
+				var fields = [];
+				for (var i = 0, len = members.length; i < len; i++) {
+					var m = members[i];
+					if (m instanceof MemberVariableDefinition)
+						fields.push(m);
+				}
+				return fields;
+			}
+			function toTypes(xs) {
+				var len = xs.length;
+				var types = new Array(len);
+				for (var i = 0; i < len; i++) {
+					types[i] = xs[i].getType();
+				}
+				return types;
+			}
+			function hasMember(argTypes, retType, m) {
+				if (m.getReturnType() != retType)
+					return false;
+				var margTypes = m.getArgumentTypes();
+				var margsLen = margTypes.length;
+				var argsLen = argTypes.length;
+				if (argsLen != margsLen)
+					return false;
+				for (var i = 0; i < argsLen; i++) {
+					if (argTypes[i] != margTypes[i])
+						return false;
+				}
+				return true;
+			}
+			var fields = extractFields();
+			var fieldTypes = toTypes(fields);
 			var hasConstructor = false;
 			var hasToString = false;
-			var fields = [];
 			for (var i = 0; i < members.length; i++) {
 				var m = members[i];
-				if (m instanceof MemberVariableDefinition)
-					fields.push(m);
-				else {
-					switch (m.getNameToken().getValue()) {
-						case "constructor":
+				switch (m.name()) {
+					case "constructor":
+						if (hasMember(fieldTypes, Type.voidType, m))
 							hasConstructor = true;
-							break;
-						case "toString":
+						}
+						break;
+					case "toString":
+						if (hasMember([], Type.stringType, m))
 							hasToString = true;
-							break;
-					}
+						break;
 				}
 			}
 			if (!hasConstructor)
@@ -1084,15 +1115,15 @@ var Parser = exports.Parser = Class.extend({
 	},
 
 	_createValClassConstructor: function(clazz, fields) {
-		var name = new Token("constructor", true, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
 		var flags = ClassDefinition.IS_FINAL;
-		var returnType = Type.voidType;
 		var locals = [];
 		var closures = [];
+		var returnType = Type.voidType;
 		// util funcs
-		var tok = function(t) {
-			return new Token(t, false, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
-		};
+		function tok(t, isIdent) {
+			isIdent = isIdent ? isIdent : false;
+			return new Token(t, isIdent, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
+		}
 		// build constructor body
 		var args = [];
 		var stmts = [];
@@ -1106,24 +1137,24 @@ var Parser = exports.Parser = Class.extend({
 			stmts.push(new ExpressionStatement(new AssignmentExpression(tok("="), fexpr, initVal)));
 		}
 		this._arguments = args;
-		return new MemberFunctionDefinition(clazz, name, flags, returnType, args, locals, stmts, closures);
+		return new MemberFunctionDefinition(clazz, tok("constructor", true), flags, returnType, args, locals, stmts, closures);
 	},
 
 	_createValClassToString: function(clazz, fields) {
-		var name = new Token("toString", true, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
 		var flags = ClassDefinition.IS_OVERRIDE;
-		var returnType = Type.stringType;
-		var args = [];
 		var locals = [];
 		var closures = [];
+		var returnType = Type.stringType;
+		var args = [];
 		// util funcs
-		var tok = function(t) {
-			return new Token(t, false, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
-		};
-		var strLit = function(str) {
+		function tok(t, isIdent) {
+			isIdent = isIdent ? isIdent : false;
+			return new Token(t, isIdent, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
+		}
+		function strLit(str) {
 			return new StringLiteralExpression(tok("'" + str + "'"));
-		};
-		var addExpr = function(firstExpr, restExprs) {
+		}
+		function addExpr(firstExpr, restExprs) {
 			switch (restExprs.length) {
 				case 1:
 					return new AdditiveExpression(tok("+"), firstExpr, restExprs[0]);
@@ -1131,21 +1162,21 @@ var Parser = exports.Parser = Class.extend({
 					var nextFirst = restExprs.shift();
 					return new AdditiveExpression(tok("+"), firstExpr, addExpr(nextFirst, restExprs));
 			}
-		};
-		var f2str = function(field) {
+		}
+		function f2str(field) {
 			var prefix = strLit(" var " + field.name() + ": " + field.getType() + " = ");
 			var suffix = strLit(";");
-			var fexpr = new PropertyExpression(tok("."), new ThisExpression(clazz, null), tok(field.getNameToken().getValue()));
+			var fexpr = new PropertyExpression(tok("."), new ThisExpression(clazz, null), tok(field.name()));
 			var toStrExpr = new PropertyExpression(tok("toString"), fexpr, tok("toString"));
 			return addExpr(prefix, [new CallExpression(tok("("), toStrExpr, []), suffix]);
-		};
+		}
 		// build toString body
 		// format: ClassName { var field: Type = value; ... }
 		var xs = fields.map(f2str);
 		var expr = addExpr(
 				strLit(clazz.getValue() + " {"), fields.map(f2str).concat(strLit(" }")) );
 		var stmts = [new ReturnStatement(clazz, expr)];
-		return new MemberFunctionDefinition(clazz, name, flags, returnType, args, locals, stmts, closures);
+		return new MemberFunctionDefinition(clazz, tok("toString", true), flags, returnType, args, locals, stmts, closures);
 	},
 
 	_memberDefinition: function (classFlags, isTemplate) {
