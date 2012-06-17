@@ -1049,7 +1049,9 @@ var Parser = exports.Parser = Class.extend({
 				if (argsLen != margsLen)
 					return false;
 				for (var i = 0; i < argsLen; i++) {
-					if (argTypes[i] != margTypes[i])
+					var argType = argTypes[i];
+					var margType = margTypes[i];
+					if ((argType != ObjectType || margType.serialize() != "Object") && argType != margType)
 						return false;
 				}
 				return true;
@@ -1057,6 +1059,7 @@ var Parser = exports.Parser = Class.extend({
 			var fields = extractFields();
 			var fieldTypes = toTypes(fields);
 			var hasConstructor = false;
+			var hasEquals = false;
 			var hasToString = false;
 			for (var i = 0; i < members.length; i++) {
 				var m = members[i];
@@ -1064,7 +1067,10 @@ var Parser = exports.Parser = Class.extend({
 					case "constructor":
 						if (hasMember(fieldTypes, Type.voidType, m))
 							hasConstructor = true;
-						}
+						break;
+					case "equals":
+						if (hasMember([ObjectType], Type.booleanType, m))
+							hasEquals = true;
 						break;
 					case "toString":
 						if (hasMember([], Type.stringType, m))
@@ -1074,6 +1080,8 @@ var Parser = exports.Parser = Class.extend({
 			}
 			if (!hasConstructor)
 				members.push(this._createValClassConstructor(className, fields));
+			if (!hasEquals)
+				members.push(this._createValClassEquals(className, fields));
 			if (!hasToString)
 				members.push(this._createValClassToString(className, fields));
 		}
@@ -1138,6 +1146,120 @@ var Parser = exports.Parser = Class.extend({
 		}
 		this._arguments = args;
 		return new MemberFunctionDefinition(clazz, tok("constructor", true), flags, returnType, args, locals, stmts, closures);
+	},
+
+	_createValClassEquals: function(clazz, fields) {
+		var flags = 0;
+		var locals = [];
+		var closures = [];
+		// util funcs
+		var outerThis = this;
+		function tok(t, isIdent) {
+			isIdent = isIdent ? isIdent : false;
+			return new Token(t, isIdent, clazz.getFilename(), clazz.getLineNumber(), clazz.getColumnNumber());
+		}
+		function typ(type) {
+			if (typeof type == "string" || type instanceof String) {
+				var t = new ParsedObjectType(new QualifiedName(tok(type, true), null), []);
+				outerThis._objectTypesUsed.push(t);
+				return t;
+			}
+			return type;
+		}
+		function boolLit(val) {
+			return new BooleanLiteralExpression(tok(val.toString()));
+		}
+		function localVar(name, type) {
+			return new LocalVariable(tok(name, false), typ(type));
+		}
+		function localExprWithDecl(name, type) {
+			var l = localVar(name, type);
+			locals.push(l);
+			return new LocalExpression(tok(name, false), l);
+		}
+		function localExpr(name, type) {
+			var l = localVar(name, type);
+			return new LocalExpression(tok(name, false), l);
+		}
+		var nullExpr = new NullExpression(clazz, Type.nullType);
+		function asExpr(expr, type) {
+			return new AsExpression(tok("as", true), expr, typ(type));
+		}
+		function assignExpr(expr, initValueExpr) {
+			return new AssignmentExpression(tok("="), expr, initValueExpr);
+		}
+		function eqExpr(expr1, expr2) {
+			return new EqualityExpression(tok("=="), expr1, expr2);
+		}
+		function neExpr(expr1, expr2) {
+			return new EqualityExpression(tok("!="), expr1, expr2);
+		}
+		function propExpr(target, prop) {
+			return new PropertyExpression(tok("."), target, tok(prop.name()));
+		}
+		function thisExpr(prop) {
+			return propExpr(new ThisExpression(clazz, null), prop);
+		}
+		function notExpr(expr) {
+			// TODO: implement
+		}
+		function callExpr(target, methodName, arg) {
+			// TODO: implement
+		}
+		function exprStmt(expr) {
+			return new ExpressionStatement(expr);
+		}
+		function retStmt(expr) {
+			return new ReturnStatement(clazz, expr);
+		}
+		function ifStmt(cond, stmt) {
+			return new IfStatement(clazz, cond, [stmt], []);
+		}
+		// build equals body
+		var returnType = Type.booleanType;
+		var args = [new ArgumentDeclaration(tok("obj", true), typ("Object"))];
+		var stmts = [];
+		// cast:
+		//   var other = obj as ValClass
+		stmts.push(exprStmt(
+			assignExpr(
+				localExprWithDecl("other", typ(clazz.getValue())),
+				asExpr(localExpr("obj", "Object"), typ(clazz.getValue()))
+			)
+		));
+		// return false if other is null:
+		//   if (other == null) return false;
+		stmts.push(ifStmt(
+			eqExpr(localExpr("other", typ(clazz.getValue())), nullExpr),
+			retStmt(boolLit(false))
+		));
+		// if then return false:
+		function hasEquals(field) {
+			// TODO: class of field has equals method
+			return !field.isBuiltin();
+		}
+		for (var i = 0, len = fields.length; i < len; i++) {
+			var field = fields[i];
+			if (hasEquals(field.getType())) {
+				// return false if this.field is not equal to other.field:
+				//   if (!(this.field.equals(other.field))) return false;
+				stmts.push(ifStmt(
+					notExpr(callExpr(thisExpr(field), "equals", propExpr(localExpr("other"), field))),
+					retStmt(boolLit(false))
+				));
+			} else {
+				// return false if this.field is not oter.field:
+				//   if (this.field != other.field) return false;
+				stmts.push(ifStmt(
+					neExpr(thisExpr(field), propExpr(localExpr("other"), field)),
+					retStmt(boolLit(false))
+				));
+			}
+		}
+		// return true:
+		stmts.push(retStmt(boolLit(true)));
+		this._arguments = args;
+		return new MemberFunctionDefinition(clazz, tok("equals", true), flags, returnType, args, locals, stmts, closures);
 	},
 
 	_createValClassToString: function(clazz, fields) {

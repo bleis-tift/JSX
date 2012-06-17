@@ -37,6 +37,11 @@ var Type = exports.Type = Class.extend({
 		this.numberType = new NumberType();
 		this.stringType = new StringType();
 		this.variantType = new VariantType();
+		this._builtinTypes = [
+			this.voidType, this.undefinedType, this.nullType,
+			this.booleanType, this.integerType, this.numberType,
+			this.stringType, this.variantType
+		];
 	},
 
 	serialize: function () {
@@ -80,6 +85,14 @@ var Type = exports.Type = Class.extend({
 
 	$isIntegerOrNumber: function (type) {
 		return type instanceof IntegerType || type instanceof NumberType;
+	},
+
+	isBuiltin: function () {
+		for (var i = 0; i < Type._builtinTypes.length; i++) {
+			if (this == Type._builtinTypes[i])
+				return true;
+		}
+		return false;
 	}
 
 });
